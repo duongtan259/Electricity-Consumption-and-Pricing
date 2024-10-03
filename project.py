@@ -6,9 +6,9 @@ import plotly.graph_objects as go
 
 warnings.filterwarnings("ignore")
 
-# Load the data
-df1 = pd.read_csv('Electricity_20-09-2024.csv', delimiter=';')
-df2 = pd.read_csv('sahkon-hinta-010121-240924.csv')
+# Load the data using the raw GitHub links
+df1 = pd.read_csv('https://raw.githubusercontent.com/duongtan259/Electricity-Consumption-and-Pricing/main/Electricity_20-09-2024.csv', delimiter=';')
+df2 = pd.read_csv('https://raw.githubusercontent.com/duongtan259/Electricity-Consumption-and-Pricing/main/sahkon-hinta-010121-240924.csv')
 
 # Step 1: Trim whitespace and convert time columns to datetime
 df1['Time'] = df1['Time'].str.strip()
