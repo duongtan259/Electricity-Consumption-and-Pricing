@@ -91,7 +91,7 @@ if st.session_state.start_date and st.session_state.end_date:
     average_paid_price = (total_bill / total_consumption * 100) if total_consumption > 0 else 0
 
     # Display the results
-    st.write(f"\nShowing range: {st.session_state.start_date.date()} - {st.session_state.end_date.date()}\n")
+    st.write(f"\nShowing range: {st.session_state.start_date.date()} -> {st.session_state.end_date.date()}\n")
     st.write(f"Total consumption over the period: {total_consumption:.1f} kWh")
     st.write(f"Total bill over the period: {total_bill:.1f} €")
     st.write(f"Average hourly price: {average_hourly_price:.2f} cents")
