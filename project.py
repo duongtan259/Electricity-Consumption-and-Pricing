@@ -4,173 +4,146 @@ from datetime import datetime
 import warnings
 import plotly.graph_objects as go
 
+# Suppress warnings to clean up the output
 warnings.filterwarnings("ignore")
 
-# Load the data using the raw GitHub links
+# Load the data from GitHub using raw links
 df1 = pd.read_csv('https://raw.githubusercontent.com/duongtan259/Electricity-Consumption-and-Pricing/main/Electricity_20-09-2024.csv', delimiter=';')
 df2 = pd.read_csv('https://raw.githubusercontent.com/duongtan259/Electricity-Consumption-and-Pricing/main/sahkon-hinta-010121-240924.csv')
 
-# Step 1: Trim whitespace and convert time columns to datetime
-df1['Time'] = df1['Time'].str.strip()
-df1['Time'] = pd.to_datetime(df1['Time'], format='%d.%m.%Y %H:%M', errors='coerce')
-df1['Date'] = df1['Time'].dt.date
-df1['Date'] = pd.to_datetime(df1['Date'], format='%Y-%m-%d', errors='coerce')
+# Step 1: Clean 'Time' columns, strip whitespace, and convert to datetime format
+df1['Time'] = df1['Time'].str.strip()  # Remove leading/trailing spaces
+df1['Time'] = pd.to_datetime(df1['Time'], format='%d.%m.%Y %H:%M', errors='coerce')  # Convert to datetime
+df1['Date'] = df1['Time'].dt.date  # Extract the date portion
+df1['Date'] = pd.to_datetime(df1['Date'], format='%Y-%m-%d', errors='coerce')  # Ensure correct datetime format
 
-# Define the columns to convert and clean the data
+# Step 2: Convert relevant columns to numeric after replacing commas with periods for decimals
 columns_to_convert = ['Energy (kWh)', 'Energy night(kWh)', 'Energy day (kWh)', 'Temperature']
 for column in columns_to_convert:
-    df1[column] = df1[column].str.replace(',', '.', regex=False)
-    df1[column] = df1[column].astype(float)
+    df1[column] = df1[column].str.replace(',', '.', regex=False)  # Replace commas with periods
+    df1[column] = df1[column].astype(float)  # Convert the string to float for numerical analysis
 
-# Fill null values in the Temperature column with 0
+# Fill any missing values in the 'Temperature' column with 0
 df1['Temperature'] = df1['Temperature'].fillna(0)
 
-# Step 1: Trim whitespace and convert time columns to datetime for df2
-df2['Time'] = df2['Time'].str.strip()
-df2['Time'] = pd.to_datetime(df2['Time'], format='%d-%m-%Y %H:%M:%S', errors='coerce')
-df2['Date'] = df2['Time'].dt.date
-df2['Date'] = pd.to_datetime(df2['Date'], format='%Y-%m-%d', errors='coerce')
+# Step 3: Repeat the cleaning process for df2 (Electricity pricing data)
+df2['Time'] = df2['Time'].str.strip()  # Remove leading/trailing spaces
+df2['Time'] = pd.to_datetime(df2['Time'], format='%d-%m-%Y %H:%M:%S', errors='coerce')  # Convert to datetime
+df2['Date'] = df2['Time'].dt.date  # Extract the date portion
+df2['Date'] = pd.to_datetime(df2['Date'], format='%Y-%m-%d', errors='coerce')  # Ensure correct datetime format
 
-# Step 1: Join the DataFrames on 'Time'
+# Step 4: Merge the two dataframes on the 'Time' column to align consumption and pricing data
 merged_df = pd.merge(df1, df2, on='Time', how='inner')
-merged_df = merged_df.drop(columns=['Date_y'])  # Drop 'Date_y', keeping 'Date_x'
+
+# Drop duplicate 'Date_y' column (because 'Date_x' is sufficient) and rename 'Date_x' to 'Date'
+merged_df = merged_df.drop(columns=['Date_y'])  
 merged_df.rename(columns={'Date_x': 'Date'}, inplace=True)
 
-# Step 3: Calculate hourly bill paid
+# Step 5: Calculate the hourly bill based on energy consumption and electricity price
 merged_df['Hourly Bill'] = merged_df['Energy (kWh)'] * (merged_df['Price (cent/kWh)'] / 100)
 
-# Convert 'Date' column to datetime type
-merged_df['Date'] = pd.to_datetime(merged_df['Date'])
-
-# Function to validate and parse the date input
-def validate_date(date_input):
-    try:
-        parsed_date = datetime.strptime(date_input, "%Y-%m-%d")
-        return parsed_date, None
-    except ValueError:
-        return None, "Invalid date format. Please use YYYY-MM-DD."
-
-# Streamlit app
+# Streamlit app interface
 st.title("Electricity Consumption and Pricing Dashboard")
 
+# Step 6: Capture start and end date inputs from the user
 start_date_input = st.text_input("Enter Start Date (YYYY-MM-DD):", "")
 end_date_input = st.text_input("Enter End Date (YYYY-MM-DD):", "")
 
-# Initialize session state for dates
-if 'start_date' not in st.session_state:
-    st.session_state.start_date = None
-if 'end_date' not in st.session_state:
-    st.session_state.end_date = None
+# Step 7: Validate date inputs
+def validate_date(date_input):
+    try:
+        return datetime.strptime(date_input, "%Y-%m-%d"), None
+    except ValueError:
+        return None, "Invalid date format. Please use YYYY-MM-DD."
 
-# Validate and store the start date
 start_date, start_error = validate_date(start_date_input)
-if start_date:
-    st.session_state.start_date = start_date
-
-# Validate and store the end date
 end_date, end_error = validate_date(end_date_input)
-if end_date:
-    st.session_state.end_date = end_date
 
-# Filter the DataFrame based on the selected dates when both dates are valid
-if st.session_state.start_date and st.session_state.end_date:
-    start_datetime = pd.to_datetime(st.session_state.start_date)
-    end_datetime = pd.to_datetime(st.session_state.end_date)
-
-    filtered_df = merged_df[
-        (merged_df['Date'] >= start_datetime) & 
-        (merged_df['Date'] <= end_datetime)
-    ]
-
-    # Calculate metrics based on filtered DataFrame
-    total_consumption = filtered_df['Energy (kWh)'].sum()
-    total_bill = filtered_df['Hourly Bill'].sum()
-    average_hourly_price = filtered_df['Price (cent/kWh)'].mean()
-
-    # Avoid division by zero
-    average_paid_price = (total_bill / total_consumption * 100) if total_consumption > 0 else 0
-
-    # Display the results
-    st.write(f"\nShowing range: {st.session_state.start_date.date()} ---> {st.session_state.end_date.date()}\n")
-    st.write(f"Total consumption over the period: {total_consumption:.1f} kWh")
-    st.write(f"Total bill over the period: {total_bill:.1f} €")
-    st.write(f"Average hourly price: {average_hourly_price:.2f} cents")
-    st.write(f"Average paid price: {average_paid_price:.2f} cents")
-
-# Show errors if there are any issues with the dates
+# Step 8: Show error if validation fails
 if start_error:
     st.error(start_error)
 if end_error:
     st.error(end_error)
 
-# Ensure 'Date' is in datetime format for resampling
-filtered_df['Date'] = pd.to_datetime(filtered_df['Date'])
+# Ensure the filtered DataFrame is only processed if both dates are valid
+if start_date and end_date:
+    # Step 9: Filter the data based on the provided date range
+    start_datetime = pd.to_datetime(start_date)
+    end_datetime = pd.to_datetime(end_date)
 
-# Step 1: Create a selection box for grouping interval
-grouping_interval = st.selectbox("Select grouping interval", ("Daily", "Weekly", "Monthly"))
+    # Apply the filter based on the date range
+    filtered_df = merged_df[
+        (merged_df['Date'] >= start_datetime) & 
+        (merged_df['Date'] <= end_datetime)
+    ]
 
-# Step 2: Calculate metrics based on the selected interval
-if grouping_interval == 'Daily':
-    # Group by date
-    summary = filtered_df.groupby('Date').agg(
-        Daily_Consumption=('Energy (kWh)', 'sum'),
-        Daily_Bill=('Hourly Bill', 'sum'),
-        Average_Price=('Price (cent/kWh)', 'mean'),
-        Average_Temperature=('Temperature', 'mean')
-    ).reset_index()
+    # Ensure 'Date' is in datetime format for later processing
+    filtered_df['Date'] = pd.to_datetime(filtered_df['Date'])
 
-elif grouping_interval == 'Weekly':
-    # Group by week
-    summary = filtered_df.resample('W', on='Date').agg(
-        Weekly_Consumption=('Energy (kWh)', 'sum'),
-        Weekly_Bill=('Hourly Bill', 'sum'),
-        Average_Price=('Price (cent/kWh)', 'mean'),
-        Average_Temperature=('Temperature', 'mean')
-    ).reset_index()
+    # Step 10: Calculate metrics based on the filtered DataFrame
+    total_consumption = filtered_df['Energy (kWh)'].sum()
+    total_bill = filtered_df['Hourly Bill'].sum()
+    average_hourly_price = filtered_df['Price (cent/kWh)'].mean()
 
-elif grouping_interval == 'Monthly':
-    # Group by month
-    summary = filtered_df.resample('M', on='Date').agg(
-        Monthly_Consumption=('Energy (kWh)', 'sum'),
-        Monthly_Bill=('Hourly Bill', 'sum'),
-        Average_Price=('Price (cent/kWh)', 'mean'),
-        Average_Temperature=('Temperature', 'mean')
-    ).reset_index()
+    # Avoid division by zero when calculating average paid price
+    average_paid_price = (total_bill / total_consumption * 100) if total_consumption > 0 else 0
+
+    # Step 11: Display the results in the dashboard
+    st.write(f"\nShowing range: {start_datetime.date()} ---> {end_datetime.date()}\n")
+    st.write(f"Total consumption over the period: {total_consumption:.1f} kWh")
+    st.write(f"Total bill over the period: {total_bill:.1f} €")
+    st.write(f"Average hourly price: {average_hourly_price:.2f} cents")
+    st.write(f"Average paid price: {average_paid_price:.2f} cents")
+
+    # Step 12: Grouping interval selection for time-based aggregation
+    grouping_interval = st.selectbox("Select grouping interval", ("Daily", "Weekly", "Monthly"))
+
+    # Step 13: Aggregate data based on the selected interval
+    if grouping_interval == 'Daily':
+        summary = filtered_df.groupby('Date').agg(
+            Daily_Consumption=('Energy (kWh)', 'sum'),
+            Daily_Bill=('Hourly Bill', 'sum'),
+            Average_Price=('Price (cent/kWh)', 'mean'),
+            Average_Temperature=('Temperature', 'mean')
+        ).reset_index()
+
+    elif grouping_interval == 'Weekly':
+        summary = filtered_df.resample('W', on='Date').agg(
+            Weekly_Consumption=('Energy (kWh)', 'sum'),
+            Weekly_Bill=('Hourly Bill', 'sum'),
+            Average_Price=('Price (cent/kWh)', 'mean'),
+            Average_Temperature=('Temperature', 'mean')
+        ).reset_index()
+
+    elif grouping_interval == 'Monthly':
+        summary = filtered_df.resample('M', on='Date').agg(
+            Monthly_Consumption=('Energy (kWh)', 'sum'),
+            Monthly_Bill=('Hourly Bill', 'sum'),
+            Average_Price=('Price (cent/kWh)', 'mean'),
+            Average_Temperature=('Temperature', 'mean')
+        ).reset_index()
 
 else:
     st.warning("Invalid grouping interval selected.")
-    summary = pd.DataFrame()  # Empty DataFrame if invalid input
+    summary = pd.DataFrame()  # Empty DataFrame if the input is invalid
 
-# Step 3: Calculate total metrics
+# Step 14: Calculate total metrics if there is a valid summary
 if not summary.empty:
-    total_consumption = summary['Daily_Consumption'].sum() if grouping_interval == 'Daily' else \
-                        summary['Weekly_Consumption'].sum() if grouping_interval == 'Weekly' else \
-                        summary['Monthly_Consumption'].sum()
+    total_consumption = summary.iloc[:, 1].sum()  # Aggregate consumption based on selected interval
+    total_bill = summary.iloc[:, 2].sum()  # Aggregate bill based on selected interval
+    average_price = summary['Average_Price'].mean()
+    average_temperature = summary['Average_Temperature'].mean()
 
-    total_bill = summary['Daily_Bill'].sum() if grouping_interval == 'Daily' else \
-                 summary['Weekly_Bill'].sum() if grouping_interval == 'Weekly' else \
-                 summary['Monthly_Bill'].sum()
+    # Step 15: Visualization of data using Plotly
 
-    average_price = summary['Average_Price'].mean() if grouping_interval == 'Daily' else \
-                    summary['Average_Price'].mean() if grouping_interval == 'Weekly' else \
-                    summary['Average_Price'].mean()
-
-    average_temperature = summary['Average_Temperature'].mean() if grouping_interval == 'Daily' else \
-                         summary['Average_Temperature'].mean() if grouping_interval == 'Weekly' else \
-                         summary['Average_Temperature'].mean()
-
-    # Step 4: Visualization of individual metrics using Plotly
-
-    # Set figure size
+    # Set chart dimensions
     chart_width = 800
     chart_height = 600
 
     # Consumption plot
     fig1 = go.Figure()
     fig1.add_trace(go.Scatter(x=summary['Date'], 
-                               y=summary['Daily_Consumption'] if grouping_interval == 'Daily' else 
-                                 summary['Weekly_Consumption'] if grouping_interval == 'Weekly' else 
-                                 summary['Monthly_Consumption'],
+                               y=summary.iloc[:, 1],  # Consumption column depending on interval
                                mode='lines+markers',
                                name='Consumption (kWh)'))
     fig1.update_layout(title='Total Consumption Over Time',
@@ -184,9 +157,7 @@ if not summary.empty:
     # Bill plot
     fig2 = go.Figure()
     fig2.add_trace(go.Scatter(x=summary['Date'], 
-                               y=summary['Daily_Bill'] if grouping_interval == 'Daily' else 
-                                 summary['Weekly_Bill'] if grouping_interval == 'Weekly' else 
-                                 summary['Monthly_Bill'],
+                               y=summary.iloc[:, 2],  # Bill column depending on interval
                                mode='lines+markers',
                                name='Bill (€)', line=dict(color='orange')))
     fig2.update_layout(title='Total Bill Over Time',
@@ -197,29 +168,29 @@ if not summary.empty:
                        height=chart_height)
     st.plotly_chart(fig2)
 
-    # Average Price plot
+    # Average price plot
     fig3 = go.Figure()
     fig3.add_trace(go.Scatter(x=summary['Date'], 
-                               y=summary['Average_Price'],
+                               y=summary['Average_Price'], 
                                mode='lines+markers',
                                name='Average Price (cent/kWh)', line=dict(color='green')))
-    fig3.update_layout(title='Average Price Over Time',
+    fig3.update_layout(title='Average Electricity Price Over Time',
                        xaxis_title='Date',
-                       yaxis_title='Average Price (cent/kWh)',
+                       yaxis_title='Price (cent/kWh)',
                        xaxis_tickangle=-45,
                        width=chart_width,
                        height=chart_height)
     st.plotly_chart(fig3)
 
-    # Average Temperature plot
+    # Temperature plot
     fig4 = go.Figure()
     fig4.add_trace(go.Scatter(x=summary['Date'], 
-                               y=summary['Average_Temperature'],
+                               y=summary['Average_Temperature'], 
                                mode='lines+markers',
-                               name='Average Temperature (°C)', line=dict(color='red')))
+                               name='Temperature (°C)', line=dict(color='blue')))
     fig4.update_layout(title='Average Temperature Over Time',
                        xaxis_title='Date',
-                       yaxis_title='Average Temperature (°C)',
+                       yaxis_title='Temperature (°C)',
                        xaxis_tickangle=-45,
                        width=chart_width,
                        height=chart_height)
