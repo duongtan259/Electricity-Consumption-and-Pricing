@@ -19,7 +19,7 @@ df1['Date'] = pd.to_datetime(df1['Date'], format='%Y-%m-%d', errors='coerce')
 # Define the columns to convert and clean the data
 columns_to_convert = ['Energy (kWh)', 'Energy night(kWh)', 'Energy day (kWh)', 'Temperature']
 for column in columns_to_convert:
-    df1[column] = df1[column].str.replace(',', '', regex=False)
+    df1[column] = df1[column].str.replace(',', '.', regex=False)
     df1[column] = df1[column].astype(float)
 
 # Fill null values in the Temperature column with 0
@@ -91,7 +91,7 @@ if st.session_state.start_date and st.session_state.end_date:
     average_paid_price = (total_bill / total_consumption * 100) if total_consumption > 0 else 0
 
     # Display the results
-    st.write(f"\nShowing range: {st.session_state.start_date.date()} -> {st.session_state.end_date.date()}\n")
+    st.write(f"\nShowing range: {st.session_state.start_date.date()} ---> {st.session_state.end_date.date()}\n")
     st.write(f"Total consumption over the period: {total_consumption:.1f} kWh")
     st.write(f"Total bill over the period: {total_bill:.1f} €")
     st.write(f"Average hourly price: {average_hourly_price:.2f} cents")
