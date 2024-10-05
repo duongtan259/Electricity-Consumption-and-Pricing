@@ -27,3 +27,5 @@ The **Electricity Consumption and Pricing Dashboard** is a Streamlit application
    ```bash
    git clone https://github.com/duongtan259/Electricity-Consumption-and-Pricing.git
    ```
+
+it can be run using: streamlit run [https://raw.githubusercontent.com/duongtan259/Electricity-Consumption-and-Pricing/main/project.py](https://raw.githubusercontent.com/duongtan259/Electricity-Consumption-and-Pricing/main/project.py)
