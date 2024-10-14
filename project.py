@@ -33,10 +33,10 @@ df2['Date'] = df2['Time'].dt.date  # Extract the date portion
 df2['Date'] = pd.to_datetime(df2['Date'], format='%Y-%m-%d', errors='coerce')  # Ensure correct datetime format
 
 # Step 4: Merge the two dataframes on the 'Time' column to align consumption and pricing data
-merged_df = pd.merge(df1, df2, on='Time', how='inner')
+merged_df = pd.merge(df1, df2, on='Time', how='left')
 
 # Drop duplicate 'Date_y' column (because 'Date_x' is sufficient) and rename 'Date_x' to 'Date'
-merged_df = merged_df.drop(columns=['Date_y'])  
+merged_df = merged_df.drop(columns=['Date_y'])
 merged_df.rename(columns={'Date_x': 'Date'}, inplace=True)
 
 # Step 5: Calculate the hourly bill based on energy consumption and electricity price
